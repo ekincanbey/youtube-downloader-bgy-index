@@ -3,118 +3,109 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube Video İndirici</title>
+    <title>Nihai YouTube İndirici</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-    </style>
+    <style> body { font-family: 'Inter', sans-serif; } </style>
 </head>
 <body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
 
     <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-2xl mx-auto">
-        <div class="text-center mb-8">
-            <h1 class="text-3xl md:text-4xl font-bold text-white">YouTube İndirici</h1>
-            <p class="text-gray-400 mt-2">Her kalitede Video veya MP3 indirin.</p>
-        </div>
-
+        <h1 class="text-3xl font-bold text-center mb-6">Nihai YouTube İndirici</h1>
+        
         <div class="space-y-4">
-            <input type="url" id="urlInput" placeholder="https://www.youtube.com/watch?v=..." class="w-full p-4 bg-gray-700 border-2 border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <button id="getInfoBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105">
-                İndirme Seçeneklerini Getir
-            </button>
+            <input type="url" id="urlInput" placeholder="https://www.youtube.com/watch?v=..." class="w-full p-4 bg-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <button id="getInfoBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Formatları Getir</button>
         </div>
 
-        <div id="loader" class="text-center py-8 hidden">Yükleniyor...</div>
-        <div id="errorMessage" class="hidden mt-4 bg-red-500/20 text-red-300 p-4 rounded-lg text-center"></div>
+        <div id="status" class="text-center py-4 hidden"></div>
         
         <div id="results" class="hidden mt-8">
-            <div class="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-6 bg-gray-700/50 p-6 rounded-lg">
-                <img id="thumbnail" src="" alt="Video Thumbnail" class="w-40 h-auto rounded-lg shadow-md object-cover">
-                <h2 id="videoTitle" class="text-xl font-semibold text-center sm:text-left"></h2>
+            <div class="flex items-center space-x-6 bg-gray-700/50 p-6 rounded-lg">
+                <img id="thumbnail" src="" alt="Video Thumbnail" class="w-40 h-auto rounded-lg shadow-md">
+                <h2 id="videoTitle" class="text-xl font-semibold"></h2>
             </div>
             <div class="mt-6">
-                <label for="formatSelect" class="block mb-2 text-sm font-medium text-gray-300">İndirme Kalitesini Seçin:</label>
-                <select id="formatSelect" class="w-full p-3 bg-gray-600 border border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"></select>
+                <select id="formatSelect" class="w-full p-3 bg-gray-600 rounded-lg"></select>
             </div>
-            <button id="downloadBtn" class="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105">
-                Seçileni İndir
-            </button>
+            <button id="downloadBtn" class="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg">Seçileni İndir</button>
         </div>
     </div>
 
     <script>
-        // --- DEĞİŞTİRMEN GEREKEBİLECEK TEK YER ---
-        // Eğer backend'i Render gibi bir yere yüklersen, bu adresi değiştirmen yeterli.
-        const API_URL = 'https://youtube-video-downloader-arj5.onrender.com'; 
-        // Örnek: const API_URL = 'https://senin-uygulaman.onrender.com';
-
-        const getInfoBtn = document.getElementById('getInfoBtn');
+        const API_URL = 'https://youtube-video-downloader-arj5.onrender.com'; // Bu adresi Render'daki backend adresinle değiştireceksin.
+        
         const urlInput = document.getElementById('urlInput');
-        const loader = document.getElementById('loader');
+        const getInfoBtn = document.getElementById('getInfoBtn');
+        const statusDiv = document.getElementById('status');
         const resultsDiv = document.getElementById('results');
-        const errorDiv = document.getElementById('errorMessage');
         const thumbnailImg = document.getElementById('thumbnail');
         const videoTitle = document.getElementById('videoTitle');
         const formatSelect = document.getElementById('formatSelect');
         const downloadBtn = document.getElementById('downloadBtn');
 
-        let currentFormats = [];
+        let videoId = '';
 
         getInfoBtn.addEventListener('click', async () => {
             const url = urlInput.value.trim();
-            if (!url) return showError('Lütfen bir URL girin.');
+            if (!url) return;
+            
+            try {
+                const urlParams = new URLSearchParams(new URL(url).search);
+                videoId = urlParams.get('v');
+                if (!videoId) throw new Error();
+            } catch {
+                setStatus('Hata: Geçerli bir YouTube video URL\'si girin.');
+                return;
+            }
 
-            hideAll();
-            loader.classList.remove('hidden');
+            setStatus('Formatlar getiriliyor, lütfen bekleyin...', false);
+            resultsDiv.classList.add('hidden');
 
             try {
                 const response = await fetch(`${API_URL}/api/info?url=${encodeURIComponent(url)}`);
-                if (!response.ok) {
-                    const errData = await response.json();
-                    throw new Error(errData.error || 'Bilinmeyen bir sunucu hatası.');
-                }
                 const data = await response.json();
-                
+
+                if (!response.ok) throw new Error(data.error);
+
                 thumbnailImg.src = data.thumbnail;
                 videoTitle.textContent = data.title;
-                currentFormats = data.formats;
-
+                
                 formatSelect.innerHTML = '';
-                data.formats.forEach((format, index) => {
+                data.formats.forEach(format => {
                     const option = document.createElement('option');
-                    option.value = index;
-                    option.textContent = format.quality;
+                    option.value = format.itag;
+                    let label = `${format.quality} - (${format.mimeType})`;
+                    if (!format.hasAudio && format.hasVideo) {
+                        label += " (Sadece Video)";
+                    } else if (format.hasAudio && !format.hasVideo) {
+                        label += " (Sadece Ses)";
+                    }
+                    option.textContent = label;
                     formatSelect.appendChild(option);
                 });
 
-                loader.classList.add('hidden');
+                setStatus('', true);
                 resultsDiv.classList.remove('hidden');
 
             } catch (error) {
-                showError(error.message);
-                loader.classList.add('hidden');
+                setStatus(`Hata: ${error.message}`);
             }
         });
 
         downloadBtn.addEventListener('click', () => {
-            const selectedIndex = formatSelect.value;
-            const selectedFormat = currentFormats[selectedIndex];
-            if (!selectedFormat) return showError('Lütfen geçerli bir format seçin.');
+            const selectedItag = formatSelect.value;
+            if (!videoId || !selectedItag) return;
 
-            const downloadUrl = `${API_URL}/api/download?url=${encodeURIComponent(urlInput.value)}&itag=${selectedFormat.itag}&type=${selectedFormat.type}`;
+            setStatus('İndirme hazırlanıyor, bu işlem biraz zaman alabilir...', false);
+            const downloadUrl = `${API_URL}/api/download?videoId=${videoId}&itag=${selectedItag}`;
             window.location.href = downloadUrl;
         });
 
-        function showError(message) {
-            errorDiv.textContent = message;
-            errorDiv.classList.remove('hidden');
-        }
-
-        function hideAll() {
-            loader.classList.add('hidden');
-            resultsDiv.classList.add('hidden');
-            errorDiv.classList.add('hidden');
+        function setStatus(message, isError) {
+            statusDiv.textContent = message;
+            statusDiv.classList.toggle('text-red-400', isError);
+            statusDiv.classList.toggle('hidden', !message);
         }
     </script>
 </body>

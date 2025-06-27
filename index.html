@@ -33,7 +33,7 @@
     </div>
 
     <script>
-        const API_URL = 'https://youtube-video-downloader-arj5.onrender.com'; // Bu adresi Render'daki backend adresinle değiştireceksin.
+        const API_URL = 'http://localhost:4000'; // Bu adresi Render'daki backend adresinle değiştireceksin.
         
         const urlInput = document.getElementById('urlInput');
         const getInfoBtn = document.getElementById('getInfoBtn');
@@ -50,14 +50,35 @@
             const url = urlInput.value.trim();
             if (!url) return;
             
+            // --- GÜNCELLENMİŞ URL KONTROL MANTIĞI ---
+            let id = null;
             try {
-                const urlParams = new URLSearchParams(new URL(url).search);
-                videoId = urlParams.get('v');
-                if (!videoId) throw new Error();
+                // Standart URL'ler için (?v=...)
+                if (url.includes("watch?v=")) {
+                    id = new URL(url).searchParams.get('v');
+                } 
+                // Shorts URL'leri için (/shorts/...)
+                else if (url.includes("/shorts/")) {
+                    const parts = new URL(url).pathname.split('/');
+                    id = parts[parts.indexOf('shorts') + 1];
+                }
+                // Mobil URL'ler için (youtu.be/...)
+                else if (url.includes("youtu.be/")) {
+                    const parts = new URL(url).pathname.split('/');
+                    id = parts[1];
+                }
+
+                if (!id) {
+                    throw new Error("Geçerli video ID'si bulunamadı.");
+                }
             } catch {
-                setStatus('Hata: Geçerli bir YouTube video URL\'si girin.');
+                setStatus('Hata: Geçerli bir YouTube video URL\'si girin.', true);
                 return;
             }
+
+            videoId = id; // Video ID'sini global değişkene ata
+            // --- GÜNCELLEME SONU ---
+
 
             setStatus('Formatlar getiriliyor, lütfen bekleyin...', false);
             resultsDiv.classList.add('hidden');
@@ -89,7 +110,7 @@
                 resultsDiv.classList.remove('hidden');
 
             } catch (error) {
-                setStatus(`Hata: ${error.message}`);
+                setStatus(`Hata: ${error.message}`, true);
             }
         });
 
@@ -104,7 +125,7 @@
 
         function setStatus(message, isError) {
             statusDiv.textContent = message;
-            statusDiv.classList.toggle('text-red-400', isError);
+            statusDiv.classList.toggle('text-red-400', isError === true);
             statusDiv.classList.toggle('hidden', !message);
         }
     </script>

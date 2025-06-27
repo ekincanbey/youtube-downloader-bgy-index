@@ -21,9 +21,9 @@
         <div id="status" class="text-center py-4 hidden"></div>
         
         <div id="results" class="hidden mt-8">
-            <div class="flex items-center space-x-6 bg-gray-700/50 p-6 rounded-lg">
+            <div class="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-6 bg-gray-700/50 p-6 rounded-lg">
                 <img id="thumbnail" src="" alt="Video Thumbnail" class="w-40 h-auto rounded-lg shadow-md">
-                <h2 id="videoTitle" class="text-xl font-semibold"></h2>
+                <h2 id="videoTitle" class="text-xl font-semibold text-center sm:text-left"></h2>
             </div>
             <div class="mt-6">
                 <select id="formatSelect" class="w-full p-3 bg-gray-600 rounded-lg"></select>
@@ -33,7 +33,7 @@
     </div>
 
     <script>
-        const API_URL = 'https://youtube-video-downloader-arj5.onrender.com'; // Bu adresi Render'daki backend adresinle değiştireceksin.
+        const API_URL = 'https://youtube-downloader-backend-s2fn.onrender.com'; // Bu adresi Render'daki backend adresinle değiştireceksin.
         
         const urlInput = document.getElementById('urlInput');
         const getInfoBtn = document.getElementById('getInfoBtn');
@@ -44,82 +44,66 @@
         const formatSelect = document.getElementById('formatSelect');
         const downloadBtn = document.getElementById('downloadBtn');
 
-        let videoId = '';
+        let currentFormats = []; // Sunucudan gelen formatların tamamını saklamak için
 
         getInfoBtn.addEventListener('click', async () => {
             const url = urlInput.value.trim();
-            if (!url) return;
-            
-            // --- GÜNCELLENMİŞ URL KONTROL MANTIĞI ---
-            let id = null;
-            try {
-                // Standart URL'ler için (?v=...)
-                if (url.includes("watch?v=")) {
-                    id = new URL(url).searchParams.get('v');
-                } 
-                // Shorts URL'leri için (/shorts/...)
-                else if (url.includes("/shorts/")) {
-                    const parts = new URL(url).pathname.split('/');
-                    id = parts[parts.indexOf('shorts') + 1];
-                }
-                // Mobil URL'ler için (youtu.be/...)
-                else if (url.includes("youtu.be/")) {
-                    const parts = new URL(url).pathname.split('/');
-                    id = parts[1];
-                }
-
-                if (!id) {
-                    throw new Error("Geçerli video ID'si bulunamadı.");
-                }
-            } catch {
-                setStatus('Hata: Geçerli bir YouTube video URL\'si girin.', true);
+            if (!url) {
+                setStatus('Lütfen bir URL girin.', true);
                 return;
             }
 
-            videoId = id; // Video ID'sini global değişkene ata
-            // --- GÜNCELLEME SONU ---
-
-
             setStatus('Formatlar getiriliyor, lütfen bekleyin...', false);
             resultsDiv.classList.add('hidden');
+            statusDiv.classList.remove('hidden'); // Yükleniyor... mesajını göster
 
             try {
                 const response = await fetch(`${API_URL}/api/info?url=${encodeURIComponent(url)}`);
                 const data = await response.json();
 
-                if (!response.ok) throw new Error(data.error);
+                if (!response.ok) throw new Error(data.error || 'Sunucudan geçersiz yanıt.');
 
                 thumbnailImg.src = data.thumbnail;
                 videoTitle.textContent = data.title;
-                
+                currentFormats = data.formats; // Gelen formatları sakla
+
                 formatSelect.innerHTML = '';
-                data.formats.forEach(format => {
+                // Her bir format için bir seçenek oluştur
+                currentFormats.forEach((format, index) => {
                     const option = document.createElement('option');
-                    option.value = format.itag;
-                    let label = `${format.quality} - (${format.mimeType})`;
-                    if (!format.hasAudio && format.hasVideo) {
-                        label += " (Sadece Video)";
-                    } else if (format.hasAudio && !format.hasVideo) {
-                        label += " (Sadece Ses)";
-                    }
-                    option.textContent = label;
+                    option.value = index; // Değer olarak dizideki index'i kullan
+                    option.textContent = format.quality;
                     formatSelect.appendChild(option);
                 });
 
-                setStatus('', true);
+                setStatus('', true); // Hata mesajını temizle
                 resultsDiv.classList.remove('hidden');
 
             } catch (error) {
                 setStatus(`Hata: ${error.message}`, true);
+            } finally {
+                // Yükleniyor mesajını gizle, hata olsa da olmasa da
+                if (statusDiv.textContent === 'Formatlar getiriliyor, lütfen bekleyin...') {
+                    statusDiv.classList.add('hidden');
+                }
             }
         });
 
         downloadBtn.addEventListener('click', () => {
-            const selectedItag = formatSelect.value;
-            if (!videoId || !selectedItag) return;
+            const selectedIndex = formatSelect.value;
+            // Seçili formatın geçerli olup olmadığını kontrol et
+            if (selectedIndex === null || !currentFormats[selectedIndex]) {
+                setStatus('Lütfen listeden geçerli bir format seçin.', true);
+                return;
+            }
 
+            const selectedFormat = currentFormats[selectedIndex];
+            const url = urlInput.value.trim();
+            
             setStatus('İndirme hazırlanıyor, bu işlem biraz zaman alabilir...', false);
-            const downloadUrl = `${API_URL}/api/download?videoId=${videoId}&itag=${selectedItag}`;
+            
+            // Backend'in beklediği tüm parametreleri (url, itag, type) gönder
+            const downloadUrl = `${API_URL}/api/download?url=${encodeURIComponent(url)}&itag=${selectedFormat.itag}&type=${selectedFormat.type}`;
             window.location.href = downloadUrl;
         });
 
